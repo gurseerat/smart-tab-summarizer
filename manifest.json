@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Smart Tab Summarizer & Task List",
+  "version": "1.0.0",
+  "description": "Summarize open tabs and build a task list from them.",
+  "permissions": ["tabs", "storage", "activeTab", "scripting", "sidePanel"],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Click to open panel"
+  },
+  "side_panel": {
+    "default_path": "sidebar.html"
+  },
+  "web_accessible_resources": [{
+    "resources": ["sidebar.css"],
+    "matches": ["<all_urls>"]
+  }],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["contentScript.js"]
+    }
+  ]
+}
