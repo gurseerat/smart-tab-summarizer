@@ -1,21 +1,19 @@
-// chrome.runtime.onInstalled.addListener(() => {
-//     console.log('Smart Tab Summarizer installed');
-// });
-
 chrome.runtime.onInstalled.addListener(() => {
+    chrome.storage.local.remove('tabInfoList');
     chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 });
 
-chrome.runtime.onConnect.addListener(port => {
-    if (port.name === 'sidebar') {
-        chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
-            const tab = tabs[0];
-            if (!tab || !tab.id || tab.url.startsWith('chrome://')) return;
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg.type === 'TAB_INFO') {
+        chrome.storage.local.get('tabInfoList', res => {
+            const list = res.tabInfoList || [];
 
-            chrome.scripting.executeScript({
-                target: { tabId: tab.id },
-                files: ['contentScript.js']
-            }).catch(err => console.warn('Script injection failed:', err));
+            // Check for duplicate by URL
+            const exists = list.find(tab => tab.url === msg.payload.url);
+            if (!exists) {
+                list.push(msg.payload);
+                chrome.storage.local.set({ tabInfoList: list });
+            }
         });
     }
 });

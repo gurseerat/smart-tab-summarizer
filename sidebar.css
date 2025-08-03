@@ -12,8 +12,12 @@ h1, h2 {
 .summary {
     box-shadow: #e3e3e3 0 0 8px 1px;
     padding: 10px 15px;
-    margin-bottom: 12px;
-    border-radius: 25px;
+    margin-bottom: 20px;
+    border-radius: 12px;
+    position: relative;
+    h4 {
+        margin: 1em 0;
+    }
     h3 {
         margin-bottom: 2px;
     }
@@ -65,4 +69,25 @@ button {
     align-items: flex-start;
     place-content: space-between;
     flex-wrap: nowrap;
+}
+
+.badge {
+    background: #a0d2eb;
+    width: 10px;
+    padding: 6px 6px;
+    display: flex;
+    border-radius: 94px;
+    position: absolute;
+    top: -9px;
+    left: -9px;
+    font-size: 0.85em;
+    color: #fff;
+    height: 10px;
+    line-height: 10px;
+    justify-content: center;
+}
+
+.closed .badge {
+    background: #b35858;
+    width: 35px;
 }
