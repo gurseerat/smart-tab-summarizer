@@ -1,6 +1,5 @@
 body {
     font-family: Arial, sans-serif;
-    width: 300px;
     padding: 10px;
     color: #494d5f;
 }
@@ -12,7 +11,7 @@ h1, h2 {
 .summary {
     box-shadow: #e3e3e3 0 0 8px 1px;
     padding: 10px 15px;
-    margin-bottom: 20px;
+    margin-bottom: 10px;
     border-radius: 12px;
     position: relative;
     h4 {
@@ -22,7 +21,7 @@ h1, h2 {
         margin-bottom: 2px;
     }
     p {
-        margin-top: 7px;
+        margin: 7px 0;
     }
 }
 
@@ -37,7 +36,7 @@ h1, h2 {
     i {
         font-size: 1.3em;
     }
-    &.add-btn i, &.link-btn i {
+    &.add-btn i, &.link-btn i, &.bookmark-btn i, &.remove-bookmark-btn i {
         color: #8458b3;
         padding: 0 2px;
     }
@@ -90,4 +89,29 @@ button {
 .closed .badge {
     background: #b35858;
     width: 35px;
+}
+
+.close-btn {
+    right: -8px !important;
+    top: -16px !important;
+    color: #b35858 !important;
+    position: absolute !important;
+}
+
+.read-more-btn {
+    margin: 0 !important;
+}
+
+.notes-list input {
+    border: 0;
+    padding: 5px;
+    background: transparent;
+    &:focus-visible {
+        outline: none;
+    }
+}
+
+.strikethrough {
+    text-decoration: line-through;
+    color: #aaa;
 }

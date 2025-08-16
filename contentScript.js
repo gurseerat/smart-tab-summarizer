@@ -9,10 +9,10 @@
         window.getSelection().toString() ||
         document.body.innerText.slice(0, 200);
 
-    console.log('Sending tab info:', { title, meta, url: location.href , index: window._tabIndex});
+    console.log('Sending tab info:', { title, meta, url: location.href , index: window._tabIndex, tabId: window._tabId });
 
     chrome.runtime.sendMessage({
         type: 'TAB_INFO',
-        payload: { title, meta, url: location.href, index: window._tabIndex }
+        payload: { title, meta, url: location.href, index: window._tabIndex, tabId: window._tabId }
     });
 })(typeof arguments !== 'undefined' ? arguments[0] : null);
