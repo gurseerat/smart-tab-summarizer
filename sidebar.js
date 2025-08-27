@@ -1,6 +1,7 @@
 window.addEventListener('DOMContentLoaded', () => {
     const summariesEl = document.getElementById('summaries');
     const clearBtn = document.getElementById('clear-tasks');
+    const maxHeight = 100;
 
     /**
      * Render notes for a specific task
@@ -17,7 +18,6 @@ window.addEventListener('DOMContentLoaded', () => {
         if (!notesList) {
             notesList = document.createElement('ul');
             notesList.className = 'notes-list';
-            notesList.style.paddingLeft = '16px';
             listContainer.appendChild(notesList);
         }
         notesList.innerHTML = '';
@@ -62,11 +62,11 @@ window.addEventListener('DOMContentLoaded', () => {
                     if (tabIdx === -1) return;
                     const notes = tasks[tabIdx].notes || [];
                     notes[idx] = typeof notes[idx] === 'string'
-                        ? { text: notes[idx], checked: false }
+                        ? {text: notes[idx], checked: false}
                         : notes[idx];
                     notes[idx].checked = checkbox.checked;
                     tasks[tabIdx].notes = notes;
-                    chrome.storage.local.set({ tasks }, () => {
+                    chrome.storage.local.set({tasks}, () => {
                         if (checkbox.checked) {
                             input.classList.add('strikethrough');
                         } else {
@@ -93,13 +93,13 @@ window.addEventListener('DOMContentLoaded', () => {
                 if (tabIdx === -1) return;
                 let notes = Array.isArray(tasks[tabIdx].notes) ? tasks[tabIdx].notes : [];
                 notes = notes
-                    .map(note => typeof note === 'string' ? { text: note, checked: false } : note)
+                    .map(note => typeof note === 'string' ? {text: note, checked: false} : note)
                     .filter(note => note.text && note.text.trim() !== '');
                 // If editing the last (empty) input and it's not empty, add it to notes
                 if (idx === notes.length && input.value.trim() !== '') {
-                    notes.push({ text: input.value, checked: false });
+                    notes.push({text: input.value, checked: false});
                 } else if (idx < notes.length) {
-                    notes[idx] = { ...notes[idx], text: input.value };
+                    notes[idx] = {...notes[idx], text: input.value};
                 }
                 tasks[tabIdx].notes = notes;
             });
@@ -108,55 +108,96 @@ window.addEventListener('DOMContentLoaded', () => {
         // Handle Enter and Backspace key events
         input.addEventListener('keydown', e => {
             // On Enter: add a new empty note and focus it
-            if (e.key === 'Enter' && input.value.trim() !== '') {
-                chrome.storage.local.set({ tasks }, () => {
-                    renderNotesForTask(tasks[tabIdx], id, listContainer);
-                });
+            if (e.key === 'Enter') {
+                e.preventDefault();
+
+                const value = input.value.trim();
+                if (value === '') return; // don't add a new li for empty entries
+
                 chrome.storage.local.get('tasks', res => {
                     const tasks = res.tasks || [];
                     const tabIdx = tasks.findIndex(t => t.id === id);
                     if (tabIdx === -1) return;
-                    let notes = Array.isArray(tasks[tabIdx].notes) ? tasks[tabIdx].notes : [];
-                    notes = notes
-                        .map(note => typeof note === 'string' ? { text: note, checked: false } : note)
-                        .filter(note => note.text && note.text.trim() !== '');
-                    notes.push({ text: '', checked: false }); // Always add empty note
-                    tasks[tabIdx].notes = notes;
-                    chrome.storage.local.set({ tasks }, () => {
-                        renderNotesForTask(tasks[tabIdx], id, listContainer);
+
+                    const task = tasks[tabIdx];
+
+                    // Normalize notes but DO NOT filter empties (keeps indices stable)
+                    let notes = Array.isArray(task.notes)
+                        ? task.notes.map(n => (typeof n === 'string' ? {text: n, checked: false} : n))
+                        : [];
+
+                    // Ensure current index exists
+                    if (!notes[idx]) notes[idx] = {text: '', checked: false};
+
+                    // Save the text the user just typed into this li
+                    notes[idx] = {...notes[idx], text: value};
+
+                    // Insert a new empty li right after the current one
+                    notes.splice(idx + 1, 0, {text: '', checked: false});
+
+                    task.notes = notes;
+
+                    chrome.storage.local.set({tasks}, () => {
+                        renderNotesForTask(task, id, listContainer);
+
+                        // Focus the newly added li
                         setTimeout(() => {
                             const notesList = listContainer.querySelector('.notes-list');
-                            const lastInput = notesList?.lastChild?.querySelector('input[type="text"]');
-                            if (lastInput) lastInput.focus();
+                            const nextLi = notesList?.children[idx + 1];
+                            const nextInput = nextLi?.querySelector('input[type="text"]');
+                            if (nextInput) {
+                                nextInput.focus();
+                                const len = nextInput.value.length;
+                                nextInput.setSelectionRange(len, len); // caret at end
+                            }
                         }, 0);
                     });
                 });
             }
 
+
             // On Backspace: if input is empty and more than one li, delete this note and focus previous/next
-            if (
-                e.key === 'Backspace' &&
-                input.value === '' &&
-                notesList.children.length > 1
-            ) {
+            if (e.key === 'Backspace' && input.value === '' && notesList.children.length > 1) {
                 e.preventDefault();
+
                 chrome.storage.local.get('tasks', res => {
                     const tasks = res.tasks || [];
                     const tabIdx = tasks.findIndex(t => t.id === id);
                     if (tabIdx === -1) return;
+
                     let notes = Array.isArray(tasks[tabIdx].notes) ? tasks[tabIdx].notes : [];
-                    notes = notes
-                        .map(note => typeof note === 'string' ? { text: note, checked: false } : note)
-                        .filter(note => note.text && note.text.trim() !== '');
+                    // normalize only, don't filter out empties (so indexes stay stable)
+                    notes = notes.map(note =>
+                        typeof note === 'string' ? {text: note, checked: false} : note
+                    );
+
+                    // delete only this note
                     notes.splice(idx, 1);
                     tasks[tabIdx].notes = notes;
-                    chrome.storage.local.set({ tasks }, () => {
+
+                    chrome.storage.local.set({tasks}, () => {
                         renderNotesForTask(tasks[tabIdx], id, listContainer);
+
                         setTimeout(() => {
                             const notesList = listContainer.querySelector('.notes-list');
-                            let focusIdx = idx - 1 >= 0 ? idx - 1 : 0;
+
+                            // try to move focus to previous li first
+                            let focusIdx;
+                            if (idx - 1 >= 0) {
+                                focusIdx = idx - 1;
+                            } else if (idx < notesList.children.length) {
+                                focusIdx = idx; // current index now points to "next" li after deletion
+                            } else {
+                                focusIdx = notesList.children.length - 1; // fallback to last li
+                            }
+
                             const nextInput = notesList?.children[focusIdx]?.querySelector('input[type="text"]');
-                            if (nextInput) nextInput.focus();
+                            if (nextInput) {
+                                nextInput.focus();
+                                // move caret to the end of text for natural editing
+                                const len = nextInput.value.length;
+                                nextInput.setSelectionRange(len, len);
+                            }
                         }, 0);
                     });
                 });
@@ -180,11 +221,11 @@ window.addEventListener('DOMContentLoaded', () => {
     function renderSummary(title, summary, url, index, id, isClosed, tabId) {
         const summaryContainer = document.createElement('div');
         summaryContainer.classList.add('summary-container');
+        summaryContainer.setAttribute('data-tabId', tabId);
+        if (isClosed) summaryContainer.classList.add('closed');
+        summaryContainer.id = id;
         const container = document.createElement('div');
-        container.setAttribute('data-tabId', tabId);
         container.classList.add('summary');
-        if (isClosed) container.classList.add('closed');
-        container.id = id;
 
         // Shorten summary if too long
         const maxLength = 70;
@@ -197,8 +238,8 @@ window.addEventListener('DOMContentLoaded', () => {
         <div class="inline-flex">
             <div class="summary-details">
               <h4>${title}</h4>
+              <div class="badge current-badge" style="display: none">Current</div>
               <p class="summary-text">${shortSummary}</p>
-              ${isTrimmed ? `<button class="read-more-btn">Read more</button>` : ''}
             </div>
             <button class="add-btn" title="Add Task">
                 <i class="fa fa-plus-circle"></i>
@@ -212,6 +253,10 @@ window.addEventListener('DOMContentLoaded', () => {
             <button class="link-btn" title="Open this tab" style="display: none;">
                 <i class="fa-solid fa-square-arrow-up-right"></i>
             </button>
+            <button class="expand-btn" title="Expand Summary">
+                <i class="fa-solid fa-chevron-right"></i>
+                <i class="fa-solid fa-chevron-down" style="display: none"></i>
+            </button>
             <button class="close-btn" title="Close Tab">
                 <i class="fa-solid fa-circle-xmark"></i>
             </button>
@@ -219,15 +264,22 @@ window.addEventListener('DOMContentLoaded', () => {
     `;
 
         // Button references
+        const summaryText = container.querySelector('.summary-details');
         const addBtn = container.querySelector('.add-btn');
         const bookmarkBtn = container.querySelector('.bookmark-btn');
         const removeBookmarkBtn = container.querySelector('.remove-bookmark-btn');
         const linkBtn = container.querySelector('.link-btn');
         const closeBtn = container.querySelector('.close-btn');
-        const readMoreBtn = container.querySelector('.read-more-btn');
+        const expandBtn = container.querySelector('.expand-btn');
         const summaryTextEl = container.querySelector('.summary-text');
 
-        // Bookmark button logic
+        // Click on summary text to activate the tab
+        summaryText.addEventListener('click', () => {
+            const tabId = Number(document.getElementById(id).getAttribute('data-tabId'));
+            chrome.tabs.update(tabId, {active: true});
+        })
+
+        // Add bookmark logic
         bookmarkBtn.addEventListener('click', () => {
             container.classList.add('selected');
             bookmarkBtn.style.display = 'none';
@@ -253,18 +305,17 @@ window.addEventListener('DOMContentLoaded', () => {
             closeTab(id);
         });
 
-        // Read more/less toggle
-        if (readMoreBtn) {
-            readMoreBtn.addEventListener('click', () => {
-                if (readMoreBtn.textContent === 'Read more') {
-                    summaryTextEl.textContent = summary;
-                    readMoreBtn.textContent = 'Show less';
-                } else {
-                    summaryTextEl.textContent = shortSummary;
-                    readMoreBtn.textContent = 'Read more';
-                }
-            });
-        }
+        // Expand/collapse summary logic
+        expandBtn.addEventListener('click', () => {
+            const params = {
+                summary,
+                shortSummary,
+                expandBtn,
+                summaryContainer,
+                summaryTextEl
+            }
+            toggleCardHeight(summaryContainer.classList.contains('collapsed'), { ...params });
+        });
 
         // Notes list container for this summary
         const listContainer = document.createElement('div');
@@ -282,6 +333,7 @@ window.addEventListener('DOMContentLoaded', () => {
         addBtn.addEventListener('click', async () => {
             container.classList.add('selected');
             bookmarkBtn.style.display = 'none';
+            if(summaryContainer.classList.contains('collapsed')) toggleCardHeight(true, {...params});
             removeBookmarkBtn.style.display = 'inline-block';
             await saveBookmark({title, summary, url, id, tabId});
 
@@ -314,6 +366,28 @@ window.addEventListener('DOMContentLoaded', () => {
         summariesEl.appendChild(summaryContainer);
         summaryContainer.appendChild(container);
         container.appendChild(listContainer);
+        const params = {
+            summary,
+            shortSummary,
+            expandBtn,
+            summaryContainer,
+            summaryTextEl
+        }
+        toggleCardHeight(summaryContainer.scrollHeight < maxHeight, {...params});
+    }
+
+    function toggleCardHeight(collapsed, params) {
+        if (collapsed) {
+            params.summaryTextEl.textContent = params.summary;
+            params.expandBtn.querySelector('.fa-chevron-down').style.display = 'block';
+            params.expandBtn.querySelector('.fa-chevron-right').style.display = 'none';
+            params.summaryContainer.classList.remove('collapsed');
+        } else {
+            params.summaryTextEl.textContent = params.shortSummary;
+            params.expandBtn.querySelector('.fa-chevron-down').style.display = 'none';
+            params.expandBtn.querySelector('.fa-chevron-right').style.display = 'block';
+            params.summaryContainer.classList.add('collapsed');
+        }
     }
 
     /**
@@ -454,18 +528,7 @@ window.addEventListener('DOMContentLoaded', () => {
                     });
 
                     // Highlight the current tab's summary card
-                    setTimeout(() => {
-                        chrome.tabs.query({active: true, currentWindow: true}, tabs => {
-                            if (tabs.length > 0) {
-                                const currentTab = tabs[0];
-                                const currentId = createId(currentTab.title, currentTab.url);
-                                const currentCard = document.getElementById(currentId);
-                                if (currentCard) {
-                                    currentCard.classList.add('current');
-                                }
-                            }
-                        });
-                    }, 200)
+                    getCurrentTab();
                 }
             }
         });
@@ -485,6 +548,34 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     });
 });
+
+/**
+ * Highlights the current tab's summary card
+ */
+function getCurrentTab() {
+    setTimeout(() => {
+        const previousCard = document.querySelector('.current');
+        if (previousCard) {
+            previousCard.classList.remove('current');
+            const badge = previousCard.querySelector('.current-badge');
+            badge.style.display = 'none';
+        }
+
+        chrome.tabs.query({active: true, currentWindow: true}, tabs => {
+            if (tabs.length > 0) {
+                const currentTab = tabs[0];
+                const currentId = createId(currentTab.title, currentTab.url);
+                const currentCard = document.getElementById(currentId);
+                if (currentCard) {
+                    currentCard.classList.add('current');
+                    const badge = currentCard.querySelector('.current-badge');
+                    badge.style.display = 'inline-block';
+                    currentCard.scrollIntoView({behavior: 'smooth'});
+                }
+            }
+        });
+    }, 200)
+}
 
 /**
  * Refreshes the sidebar to refresh the list of tabs and tasks
@@ -510,5 +601,10 @@ chrome.tabs.onRemoved.addListener(refreshTabs);
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     if (changeInfo.status === 'complete') {
         refreshTabs();
+        getCurrentTab();
     }
+});
+chrome.tabs.onActivated.addListener((activeInfo) => {
+    // activeInfo contains properties like tabId and windowId of the newly active tab
+    getCurrentTab();
 });
